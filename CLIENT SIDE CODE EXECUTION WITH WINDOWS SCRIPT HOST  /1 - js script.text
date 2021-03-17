@@ -1,0 +1,11 @@
+ 
+var shell = new ActiveXObject("WScript.Shell") 
+var res = shell.Run("cmd.exe");
+
+
+/*
+
+Remove this comment before executing it sav this file with .js format and on opening this file it will executes 
+ActiveXObject is a constructor of Wscript.Shell class 
+
+*/

