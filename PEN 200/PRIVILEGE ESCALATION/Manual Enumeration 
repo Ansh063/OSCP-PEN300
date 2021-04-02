@@ -1,0 +1,101 @@
+1. Enumerating Users
+
+windows :
+	whoami
+	net user
+linux : 
+	id
+	cat /etc/passwd 
+
+2. Enumerating the Hostname 
+
+windows : 
+	hostname
+linux : 
+	hostname
+
+3. Enumerating the Operating System and Version and Architecture
+
+windows : 
+	systeminfo | findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
+linux : 
+	cat /etc/issue
+	cat /etc/*-release
+	uname -a
+
+4. Enumerating Running Processes and Services 
+
+windows : 
+	tasklist /SVC
+linux : 
+	ps axu 
+
+5. Enumerating Network Information 
+	
+windows : 
+	ipconfig /all 
+	route print
+	netstat -ano
+linux : 
+	ip a
+	/sbin/route 
+	ss -anp
+
+6. Enumerating Firewall Status and Rules 
+
+windows : 
+	netsh advfirewall show currentprofile 
+	netsh advfirewall firewall show rule name=all 
+Linux : 
+	Store in /etc grep iptables	
+
+7. Enumerating Scheduled Tasks
+
+windows :
+	schtasks /query /FO LIST /v
+Linux : 
+	ls -lah /etc/cron*
+	cat /etc/crontab
+
+8. Enumerating Installed Application and Patch Levels 
+
+windows : 
+	wmic product get name, version, vendor
+	wmic qfe get caption, HotfixId,  Description, InstalledOn 
+linux : 
+	dpkg -l 
+	
+9. Enumerating Readable/Writable Files and Directories
+
+windows : 
+	accesschk.exe -uws "Everyone" "C:\Program Files"
+	Get-ChildItem "C:\Program Files" -Recurse | Get-ACL | ?{$_.AccessToString -match "Everyone\sAllow\s\sModify"}
+linux : 
+	find / -writable -type d 2>/dev/null
+	
+10. Enumerating Unmounted Disk 
+	
+windows : 
+	mountvol 
+linux : 
+	mount 
+	cat /etc/fstab	
+	lsblk 
+	
+11. Enumerating Device Drivers and Kernel Module 
+	
+windows : 
+	runs in powershell
+	drivequery.exe /v /fo csv | ConvertFrom-CSV | Select-object 'Display Name', 'Start Mode', Path 
+linux : 
+	lsmod 	
+	/sbin/modinfo libata
+	
+12. Enumerating binary That AutoElevate 
+	
+windows : 
+	reg query HKEY_CURRENT_USER\Software\Policies\Microsoft\windows\Installer
+	reg query HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\windows\Installer
+windows : 
+	find / -perm -u=s -type f 2>/dev/null
+
