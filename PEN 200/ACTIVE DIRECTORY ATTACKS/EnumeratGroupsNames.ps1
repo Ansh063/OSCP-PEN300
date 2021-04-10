@@ -1,4 +1,6 @@
-﻿$domainObj = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain() $PDC = ($domainObj.PdcRoleOwner).Name
+$domainObj = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain() 
+
+$PDC = ($domainObj.PdcRoleOwner).Name
 
 $SearchString = "LDAP://"
 
